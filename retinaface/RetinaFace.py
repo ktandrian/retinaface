@@ -1,4 +1,5 @@
 import os
+import time
 import warnings
 import logging
 from typing import Union, Any, Optional, Dict
@@ -41,6 +42,26 @@ else:
 
 # ---------------------------
 
+# ktandrian -----------------------
+from google.cloud.aiplatform import PrivateEndpoint
+
+def build_endpoint() -> PrivateEndpoint:
+    """
+    Initialize retinaface endpoint once and store it into memory.
+    Model is deployed in Vertex AI Endpoint with TF Serving.
+    """
+    # pylint: disable=invalid-name
+    global rf_endpoint  # singleton design pattern
+
+    if not "rf_endpoint" in globals():
+        rf_endpoint = PrivateEndpoint(
+            endpoint_name=os.environ.get("VERTEX_AI_RF_ENDPOINT_NAME"),
+            project=os.environ.get("VERTEX_AI_PROJECT_ID"),
+            location=os.environ.get("VERTEX_AI_LOCATION"),
+        )
+
+    return rf_endpoint
+# ktandrian -----------------------
 
 def build_model() -> Any:
     """
@@ -62,6 +83,7 @@ def detect_faces(
     img_path: Union[str, np.ndarray],
     threshold: float = 0.9,
     model: Optional[Model] = None,
+    rf_endpoint: Optional[PrivateEndpoint] = None,
     allow_upscaling: bool = True,
 ) -> Dict[str, Any]:
     """
@@ -70,6 +92,7 @@ def detect_faces(
         img_path (str or numpy array): given image
         threshold (float): threshold for detection
         model (Model): pre-trained model can be given
+        rf_endpoint (PrivateEndpoint): pre-initialized endpoint can be given
         allow_upscaling (bool): allowing up-scaling
     Returns:
         detected faces as:
@@ -87,13 +110,10 @@ def detect_faces(
             }
         }
     """
+    tic = time.time()
+
     resp = {}
     img = preprocess.get_image(img_path)
-
-    # ---------------------------
-
-    if model is None:
-        model = build_model()
 
     # ---------------------------
 
@@ -120,8 +140,40 @@ def detect_faces(
     scores_list = []
     landmarks_list = []
     im_tensor, im_info, im_scale = preprocess.preprocess_image(img, allow_upscaling)
-    net_out = model(im_tensor)
-    net_out = [elt.numpy() for elt in net_out]
+    
+    # ktandrian -----------------------
+    use_local = False
+    if use_local:
+        logger.info("# RF: local model")
+        if model is None:
+            model = build_model()
+        net_out = model(im_tensor)
+        net_out = [elt.numpy() for elt in net_out]
+    else:
+        logger.info("# RF: endpoint model")
+        if rf_endpoint is None:
+            rf_endpoint = build_endpoint()
+        rf_keys = [
+            "tf.compat.v1.transpose_1",
+            "face_rpn_bbox_pred_stride32",
+            "face_rpn_landmark_pred_stride32",
+            "tf.compat.v1.transpose_3",
+            "face_rpn_bbox_pred_stride16",
+            "face_rpn_landmark_pred_stride16",
+            "tf.compat.v1.transpose_5",
+            "face_rpn_bbox_pred_stride8",
+            "face_rpn_landmark_pred_stride8"
+        ]
+        tic_e = time.time()
+        prediction = rf_endpoint.predict(
+            instances=[{ "data": im_tensor.tolist()[0] }],
+        )
+        net_out = prediction.predictions[0]
+        net_out = [np.array([net_out[key]]) for key in rf_keys]
+        toc_e = time.time()
+        logger.info(f"# RF: Endpoint model prediction takes {toc_e-tic_e}s")
+    # ktandrian -----------------------
+        
     sym_idx = 0
 
     for _, s in enumerate(_feat_stride_fpn):
@@ -210,6 +262,8 @@ def detect_faces(
         resp[label]["landmarks"]["mouth_right"] = list(landmarks[idx][3])
         resp[label]["landmarks"]["mouth_left"] = list(landmarks[idx][4])
 
+    toc = time.time()
+    logger.info(f"# RF: Face detection takes {toc-tic}s")
     return resp
 
 
