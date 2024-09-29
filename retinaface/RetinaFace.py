@@ -1,3 +1,4 @@
+import base64
 import os
 import time
 import warnings
@@ -140,7 +141,7 @@ def detect_faces(
     scores_list = []
     landmarks_list = []
     im_tensor, im_info, im_scale = preprocess.preprocess_image(img, allow_upscaling)
-    
+
     # ktandrian -----------------------
     use_local = False
     if use_local:
@@ -154,19 +155,14 @@ def detect_faces(
         if rf_endpoint is None:
             rf_endpoint = build_endpoint()
         rf_keys = [
-            "tf.compat.v1.transpose_1",
-            "face_rpn_bbox_pred_stride32",
-            "face_rpn_landmark_pred_stride32",
-            "tf.compat.v1.transpose_3",
-            "face_rpn_bbox_pred_stride16",
-            "face_rpn_landmark_pred_stride16",
-            "tf.compat.v1.transpose_5",
-            "face_rpn_bbox_pred_stride8",
-            "face_rpn_landmark_pred_stride8"
+            "output_0", "output_1", "output_2",
+            "output_3", "output_4", "output_5",
+            "output_6", "output_7", "output_8",
         ]
         tic_e = time.time()
+        b64 = base64.urlsafe_b64encode(im_tensor[0].tobytes()).decode("utf-8")
         prediction = rf_endpoint.predict(
-            instances=[{ "data": im_tensor.tolist()[0] }],
+            instances=[{ "bytes_inputs": b64 }],
         )
         net_out = prediction.predictions[0]
         net_out = [np.array([net_out[key]]) for key in rf_keys]
