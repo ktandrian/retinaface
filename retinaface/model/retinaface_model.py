@@ -1,3 +1,4 @@
+'''
 import os
 from pathlib import Path
 import gdown
@@ -1514,3 +1515,4 @@ def build_model() -> Model:
     model = load_weights(model)
 
     return model
+'''

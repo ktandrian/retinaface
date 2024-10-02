@@ -1,3 +1,4 @@
+'''
 # 3rd party dependencies
 import tensorflow as tf
 
@@ -26,3 +27,4 @@ def validate_for_keras3():
             "tf-keras package. Please run `pip install tf-keras` "
             "or downgrade your tensorflow."
         ) from err
+'''

@@ -2,24 +2,24 @@ import base64
 import os
 import time
 import warnings
-import logging
+# import logging
 from typing import Union, Any, Optional, Dict
 
 # this has to be set before importing tf
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
+# os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
 # pylint: disable=wrong-import-position
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
 
 from retinaface import __version__
-from retinaface.model import retinaface_model
+# from retinaface.model import retinaface_model
 from retinaface.commons import preprocess, postprocess
 from retinaface.commons.logger import Logger
-from retinaface.commons import package_utils
+# from retinaface.commons import package_utils
 
 # users should install tf_keras package if they are using tf 2.16 or later versions
-package_utils.validate_for_keras3()
+# package_utils.validate_for_keras3()
 
 logger = Logger(module="retinaface/RetinaFace.py")
 
@@ -29,10 +29,11 @@ logger = Logger(module="retinaface/RetinaFace.py")
 
 # configurations
 warnings.filterwarnings("ignore")
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+# os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 # Limit the amount of reserved VRAM so that other scripts can be run in the same GPU as well
-os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
+# os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 
+'''
 tf_version = int(tf.__version__.split(".", maxsplit=1)[0])
 
 if tf_version == 2:
@@ -40,6 +41,7 @@ if tf_version == 2:
     from tensorflow.keras.models import Model
 else:
     from keras.models import Model
+'''
 
 # ---------------------------
 
@@ -64,6 +66,7 @@ def build_endpoint() -> PrivateEndpoint:
     return rf_endpoint
 # ktandrian -----------------------
 
+'''
 def build_model() -> Any:
     """
     Builds retinaface model once and store it into memory
@@ -78,12 +81,13 @@ def build_model() -> Any:
         )
 
     return model
+'''
 
 
 def detect_faces(
     img_path: Union[str, np.ndarray],
     threshold: float = 0.9,
-    model: Optional[Model] = None,
+    # model: Optional[Model] = None,
     rf_endpoint: Optional[PrivateEndpoint] = None,
     allow_upscaling: bool = True,
 ) -> Dict[str, Any]:
@@ -143,31 +147,23 @@ def detect_faces(
     im_tensor, im_info, im_scale = preprocess.preprocess_image(img, allow_upscaling)
 
     # ktandrian -----------------------
-    use_local = False
-    if use_local:
-        logger.info("# RF: local model")
-        if model is None:
-            model = build_model()
-        net_out = model(im_tensor)
-        net_out = [elt.numpy() for elt in net_out]
-    else:
-        logger.info("# RF: endpoint model")
-        if rf_endpoint is None:
-            rf_endpoint = build_endpoint()
-        rf_keys = [
-            "output_0", "output_1", "output_2",
-            "output_3", "output_4", "output_5",
-            "output_6", "output_7", "output_8",
-        ]
-        tic_e = time.time()
-        b64 = base64.urlsafe_b64encode(im_tensor[0].tobytes()).decode("utf-8")
-        prediction = rf_endpoint.predict(
-            instances=[{ "bytes_inputs": b64 }],
-        )
-        net_out = prediction.predictions[0]
-        net_out = [np.array([net_out[key]]) for key in rf_keys]
-        toc_e = time.time()
-        logger.info(f"# RF: Endpoint model prediction takes {toc_e-tic_e}s")
+    logger.info("# RF: using endpoint model")
+    if rf_endpoint is None:
+        rf_endpoint = build_endpoint()
+    rf_keys = [
+        "output_0", "output_1", "output_2",
+        "output_3", "output_4", "output_5",
+        "output_6", "output_7", "output_8",
+    ]
+    tic_e = time.time()
+    b64 = base64.urlsafe_b64encode(im_tensor[0].tobytes()).decode("utf-8")
+    prediction = rf_endpoint.predict(
+        instances=[{ "bytes_inputs": b64 }],
+    )
+    net_out = prediction.predictions[0]
+    net_out = [np.array([net_out[key]]) for key in rf_keys]
+    toc_e = time.time()
+    logger.info(f"# RF: model prediction takes {toc_e-tic_e}s")
     # ktandrian -----------------------
         
     sym_idx = 0
@@ -266,7 +262,7 @@ def detect_faces(
 def extract_faces(
     img_path: Union[str, np.ndarray],
     threshold: float = 0.9,
-    model: Optional[Model] = None,
+    # model: Optional[Model] = None,
     align: bool = True,
     allow_upscaling: bool = True,
     expand_face_area: int = 0,
@@ -290,7 +286,7 @@ def extract_faces(
     # ---------------------------
 
     obj = detect_faces(
-        img_path=img, threshold=threshold, model=model, allow_upscaling=allow_upscaling
+        img_path=img, threshold=threshold, allow_upscaling=allow_upscaling
     )
 
     if not isinstance(obj, dict):
