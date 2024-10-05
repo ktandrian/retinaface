@@ -158,7 +158,7 @@ def detect_faces(
     tic_e = time.time()
     b64 = base64.urlsafe_b64encode(im_tensor[0].tobytes()).decode("utf-8")
     prediction = rf_endpoint.predict(
-        instances=[{ "bytes_inputs": b64 }],
+        instances=[{ "bytes_inputs": b64, "shape": im_tensor[0].shape }],
     )
     net_out = prediction.predictions[0]
     net_out = [np.array([net_out[key]]) for key in rf_keys]
